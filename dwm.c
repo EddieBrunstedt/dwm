@@ -133,6 +133,7 @@ struct Monitor {
 	int by;               /* bar geometry */
 	int mx, my, mw, mh;   /* screen size */
 	int wx, wy, ww, wh;   /* window area  */
+	int gappx;            /* gaps between windows */
 	unsigned int seltags;
 	unsigned int sellt;
 	unsigned int tagset[2];
@@ -225,6 +226,7 @@ static void sendmon(Client *c, Monitor *m);
 static void setclientstate(Client *c, long state);
 static void setfocus(Client *c);
 static void setfullscreen(Client *c, int fullscreen);
+static void setgaps(const Arg *arg);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setup(void);
@@ -729,6 +731,7 @@ createmon(void)
 	m->mfact = mfact;
 	m->nmaster = nmaster;
 	m->rmaster = rmaster;
+	m->gappx = gappx;
 	m->showbar = showbar;
 	m->topbar = topbar;
 	m->lt[0] = &layouts[0];
@@ -1692,6 +1695,16 @@ setfullscreen(Client *c, int fullscreen)
 }
 
 void
+setgaps(const Arg *arg)
+{
+	if ((arg->i == 0) || (selmon->gappx + arg->i < 0))
+		selmon->gappx = 0;
+	else
+		selmon->gappx += arg->i;
+	arrange(selmon);
+}
+
+void
 setlayout(const Arg *arg)
 {
 	if (!arg || !arg->v || arg->v != selmon->lt[selmon->sellt])
@@ -1880,32 +1893,45 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n, h, mw, my, ty;
+	unsigned int i, n, h, my, ty;
+	int mw, sw, mx, sx, g;
 	Client *c;
 
 	for (n = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), n++);
 	if (n == 0)
 		return;
 
-	if (n > m->nmaster)
-		mw = m->nmaster
-			? m->ww * (m->rmaster ? 1.0 - m->mfact : m->mfact)
-			: 0;
-	else
-		mw = m->ww;
-	for (i = my = ty = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
-		if (i < m->nmaster) {
-			h = (m->wh - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->rmaster ? m->wx + m->ww - mw : m->wx,
-			       m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
-			if (my + HEIGHT(c) < m->wh)
-				my += HEIGHT(c);
+	g = m->gappx;
+
+	if (n > m->nmaster && m->nmaster) {
+		/* two columns: distribute gaps evenly (left, center, right) */
+		float fact = m->rmaster ? 1.0 - m->mfact : m->mfact;
+		mw = (m->ww - 3 * g) * fact;
+		sw = m->ww - mw - 3 * g;
+		if (m->rmaster) {
+			mx = m->wx + m->ww - mw - g;
+			sx = m->wx + g;
 		} else {
-			h = (m->wh - ty) / (n - i);
-			resize(c, m->rmaster ? m->wx : m->wx + mw, m->wy + ty,
-			       m->ww - mw - (2*c->bw), h - (2*c->bw), 0);
-			if (ty + HEIGHT(c) < m->wh)
-				ty += HEIGHT(c);
+			mx = m->wx + g;
+			sx = m->wx + mw + 2 * g;
+		}
+	} else {
+		/* single column */
+		mw = sw = m->ww - 2 * g;
+		mx = sx = m->wx + g;
+	}
+
+	for (i = 0, my = ty = g, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+		if (i < m->nmaster) {
+			h = (m->wh - my) / (MIN(n, m->nmaster) - i) - g;
+			resize(c, mx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
+			if (my + HEIGHT(c) + g < m->wh)
+				my += HEIGHT(c) + g;
+		} else {
+			h = (m->wh - ty) / (n - i) - g;
+			resize(c, sx, m->wy + ty, sw - (2*c->bw), h - (2*c->bw), 0);
+			if (ty + HEIGHT(c) + g < m->wh)
+				ty += HEIGHT(c) + g;
 		}
 }
 
