@@ -894,6 +894,9 @@ expose(XEvent *e)
 void
 focus(Client *c)
 {
+	int ntiled;
+	Client *t;
+
 	if (!c || !ISVISIBLE(c))
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
 	if (selmon->sel && selmon->sel != c)
@@ -906,6 +909,15 @@ focus(Client *c)
 		detachstack(c);
 		attachstack(c);
 		grabbuttons(c, 1);
+		/* hide border if only one tiled client visible or in monocle */
+		for (ntiled = 0, t = nexttiled(c->mon->clients); t; t = nexttiled(t->next), ntiled++);
+		if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange &&
+		    (ntiled == 1 || c->mon->lt[c->mon->sellt]->arrange == monocle)) {
+			c->bw = 0;
+			resizeclient(c, c->x, c->y, c->w + 2 * borderpx, c->h + 2 * borderpx);
+		} else {
+			c->bw = borderpx;
+		}
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 		setfocus(c);
 	} else {
@@ -1252,8 +1264,10 @@ monocle(Monitor *m)
 			n++;
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
-	for (c = nexttiled(m->clients); c; c = nexttiled(c->next))
-		resize(c, m->wx, m->wy, m->ww - 2 * c->bw, m->wh - 2 * c->bw, 0);
+	for (c = nexttiled(m->clients); c; c = nexttiled(c->next)) {
+		c->bw = 0;
+		resize(c, m->wx, m->wy, m->ww, m->wh, 0);
+	}
 }
 
 void
@@ -1921,7 +1935,8 @@ tile(Monitor *m)
 		mx = sx = m->wx + g;
 	}
 
-	for (i = 0, my = ty = g, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++)
+	for (i = 0, my = ty = g, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
+		c->bw = (n == 1) ? 0 : borderpx;
 		if (i < m->nmaster) {
 			h = (m->wh - my) / (MIN(n, m->nmaster) - i) - g;
 			resize(c, mx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
@@ -1933,6 +1948,7 @@ tile(Monitor *m)
 			if (ty + HEIGHT(c) + g < m->wh)
 				ty += HEIGHT(c) + g;
 		}
+	}
 }
 
 void
@@ -2009,9 +2025,18 @@ toggleview(const Arg *arg)
 void
 unfocus(Client *c, int setfocus)
 {
+	int ntiled;
+	Client *t;
+
 	if (!c)
 		return;
 	grabbuttons(c, 0);
+	for (ntiled = 0, t = nexttiled(c->mon->clients); t; t = nexttiled(t->next), ntiled++);
+	if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange &&
+	    (ntiled == 1 || c->mon->lt[c->mon->sellt]->arrange == monocle))
+		c->bw = 0;
+	else
+		c->bw = borderpx;
 	XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
