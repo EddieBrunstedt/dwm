@@ -164,12 +164,14 @@ struct Systray {
 };
 
 /* function declarations */
+static void applyborder(Client *c);
 static void applyrules(Client *c);
 static int applysizehints(Client *c, int *x, int *y, int *w, int *h, int interact);
 static void arrange(Monitor *m);
 static void arrangemon(Monitor *m);
 static void attach(Client *c);
 static void attachstack(Client *c);
+static int borderless(Client *c);
 static void buttonpress(XEvent *e);
 static void checkotherwm(void);
 static void cleanup(void);
@@ -315,6 +317,21 @@ struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 
 /* function implementations */
 void
+applyborder(Client *c)
+{
+	int target, delta;
+
+	if (c->isfullscreen)
+		return;
+	target = borderless(c) ? 0 : borderpx;
+	if (c->bw == target)
+		return;
+	delta = c->bw - target;
+	c->bw = target;
+	resizeclient(c, c->x, c->y, c->w + 2 * delta, c->h + 2 * delta);
+}
+
+void
 applyrules(Client *c)
 {
 	const char *class, *instance;
@@ -452,6 +469,20 @@ attachstack(Client *c)
 {
 	c->snext = c->mon->stack;
 	c->mon->stack = c;
+}
+
+int
+borderless(Client *c)
+{
+	int n;
+	Client *t;
+
+	if (c->isfloating || !c->mon->lt[c->mon->sellt]->arrange)
+		return 0;
+	if (c->mon->lt[c->mon->sellt]->arrange == monocle)
+		return 1;
+	for (n = 0, t = nexttiled(c->mon->clients); t; t = nexttiled(t->next), n++);
+	return n == 1;
 }
 
 void
@@ -898,9 +929,6 @@ expose(XEvent *e)
 void
 focus(Client *c)
 {
-	int ntiled;
-	Client *t;
-
 	if (!c || !ISVISIBLE(c))
 		for (c = selmon->stack; c && !ISVISIBLE(c); c = c->snext);
 	if (selmon->sel && selmon->sel != c)
@@ -913,18 +941,7 @@ focus(Client *c)
 		detachstack(c);
 		attachstack(c);
 		grabbuttons(c, 1);
-		/* hide border if only one tiled client visible or in monocle */
-		for (ntiled = 0, t = nexttiled(c->mon->clients); t; t = nexttiled(t->next), ntiled++);
-		if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange &&
-		    (ntiled == 1 || c->mon->lt[c->mon->sellt]->arrange == monocle)) {
-			if (c->bw != 0) {
-				c->bw = 0;
-				resizeclient(c, c->x, c->y, c->w + 2 * borderpx, c->h + 2 * borderpx);
-			}
-		} else if (c->bw != borderpx) {
-			c->bw = borderpx;
-			resizeclient(c, c->x, c->y, c->w - 2 * borderpx, c->h - 2 * borderpx);
-		}
+		applyborder(c);
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 		setfocus(c);
 	} else {
@@ -1752,9 +1769,10 @@ setlayout(const Arg *arg)
 	if (arg && arg->v)
 		selmon->lt[selmon->sellt] = (Layout *)arg->v;
 	strncpy(selmon->ltsymbol, selmon->lt[selmon->sellt]->symbol, sizeof selmon->ltsymbol);
-	if (selmon->sel)
+	if (selmon->sel) {
 		arrange(selmon);
-	else
+		applyborder(selmon->sel);
+	} else
 		drawbar(selmon);
 }
 
@@ -2009,6 +2027,7 @@ togglefloating(const Arg *arg)
 		resize(selmon->sel, selmon->sel->x, selmon->sel->y,
 			selmon->sel->w, selmon->sel->h, 0);
 	arrange(selmon);
+	applyborder(selmon->sel);
 }
 
 void
@@ -2051,18 +2070,10 @@ toggleview(const Arg *arg)
 void
 unfocus(Client *c, int setfocus)
 {
-	int ntiled;
-	Client *t;
-
 	if (!c)
 		return;
 	grabbuttons(c, 0);
-	for (ntiled = 0, t = nexttiled(c->mon->clients); t; t = nexttiled(t->next), ntiled++);
-	if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange &&
-	    (ntiled == 1 || c->mon->lt[c->mon->sellt]->arrange == monocle))
-		c->bw = 0;
-	else
-		c->bw = borderpx;
+	applyborder(c);
 	XSetWindowBorder(dpy, c->win, scheme[SchemeNorm][ColBorder].pixel);
 	if (setfocus) {
 		XSetInputFocus(dpy, root, RevertToPointerRoot, CurrentTime);
