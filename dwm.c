@@ -917,10 +917,13 @@ focus(Client *c)
 		for (ntiled = 0, t = nexttiled(c->mon->clients); t; t = nexttiled(t->next), ntiled++);
 		if (!c->isfloating && c->mon->lt[c->mon->sellt]->arrange &&
 		    (ntiled == 1 || c->mon->lt[c->mon->sellt]->arrange == monocle)) {
-			c->bw = 0;
-			resizeclient(c, c->x, c->y, c->w + 2 * borderpx, c->h + 2 * borderpx);
-		} else {
+			if (c->bw != 0) {
+				c->bw = 0;
+				resizeclient(c, c->x, c->y, c->w + 2 * borderpx, c->h + 2 * borderpx);
+			}
+		} else if (c->bw != borderpx) {
 			c->bw = borderpx;
+			resizeclient(c, c->x, c->y, c->w - 2 * borderpx, c->h - 2 * borderpx);
 		}
 		XSetWindowBorder(dpy, c->win, scheme[SchemeSel][ColBorder].pixel);
 		setfocus(c);
