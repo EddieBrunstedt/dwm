@@ -1306,7 +1306,7 @@ monocle(Monitor *m)
 	if (n > 0) /* override layout symbol */
 		snprintf(m->ltsymbol, sizeof m->ltsymbol, "[%d]", n);
 	for (c = nexttiled(m->clients); c; c = nexttiled(c->next)) {
-		c->bw = 0;
+		applyborder(c);
 		resize(c, m->wx, m->wy, m->ww, m->wh, 0);
 	}
 }
@@ -1980,7 +1980,7 @@ tile(Monitor *m)
 	}
 
 	for (i = 0, my = ty = g, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
-		c->bw = (n == 1) ? 0 : borderpx;
+		applyborder(c);
 		if (i < m->nmaster) {
 			h = (m->wh - my) / (MIN(n, m->nmaster) - i) - g;
 			resize(c, mx, m->wy + my, mw - (2*c->bw), h - (2*c->bw), 0);
@@ -2657,7 +2657,7 @@ centeredmaster(Monitor *m)
 	oty = m->gappx;
 	ety = m->gappx;
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
-	c->bw = (n == 1) ? 0 : borderpx;
+	applyborder(c);
 	if (i < m->nmaster) {
 		/* nmaster clients are stacked vertically, in the center
 		 * of the screen */
@@ -2723,7 +2723,7 @@ centeredfloatingmaster(Monitor *m)
 
 	tx = m->gappx;
 	for (i = 0, c = nexttiled(m->clients); c; c = nexttiled(c->next), i++) {
-	c->bw = (n == 1) ? 0 : borderpx;
+	applyborder(c);
 	if (i < m->nmaster) {
 		/* nmaster clients are stacked horizontally, in the center
 		 * of the screen */
