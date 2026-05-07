@@ -321,7 +321,7 @@ applyborder(Client *c)
 {
 	int target, delta;
 
-	if (c->isfullscreen)
+	if (c->isfullscreen || !ISVISIBLE(c))
 		return;
 	target = borderless(c) ? 0 : borderpx;
 	if (c->bw == target)
